@@ -1,20 +1,28 @@
-use crate::neuron::Type;
-use crate::neuron::Network;
-
+use crate::neuron::{Network, Neuron, Type};
+use std::time::Instant;
 
 mod neuron;
 
-
 fn main() {
+    let deuration = Instant::now();
     let mut network = Network::new();
 
-    let _neuron = network.get_or_create_neuron(10, Type::Input);
+    let mut neuron = Neuron::new(1, Type::Input);
 
-    let _neuron = network.get_or_create_neuron(10, Type::Input);
+    println!("Before signal: {}", neuron.voltage);
 
-    network.get_or_create_neuron(20, Type::Output);
+    neuron.receive(0, 20.0);
 
-    println!("Neuron 10 exists: {}", network.neuron_exists(10));
-    println!("Neuron 50 exists: {}", network.neuron_exists(50));
-    println!("Total neurons: {}", network.neurons.len());
+    println!("After signal: {}", neuron.voltage);
+
+    let fired = neuron.fire();
+
+    println!("Fired: {:?}", fired);
+    println!("Final voltage: {}", neuron.voltage);
+
+    network.add_neuron(neuron);
+
+    println!("time taken: {:?}ms", deuration.elapsed().as_micros());
+
+    println!("{network:#?}");
 }

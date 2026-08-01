@@ -49,7 +49,7 @@ pub struct Neuron {
 }
 
 impl Neuron {
-    pub fn new(id: usize, neuron_type: Type) -> Self {
+    pub fn new(id: usize, neuron_type: Type) -> Self { // crete a new neuron
         let mut rng = rand::rng();
 
         let resting_voltage = rng.random_range(-75.0..=-65.0);
@@ -74,9 +74,31 @@ impl Neuron {
         }
     }
 
-    pub fn connect_to(&mut self, target_id: usize, weight: f32) {
-        self.connections
-            .push(Connection::new(target_id, weight));
+    pub fn connect_to(&mut self, neuron: &Neuron, weight: f32) {// connect a neuron to another neuron
+        if !self
+            .connections
+            .iter()
+            .any(|c| c.target_id == neuron.id)
+        {
+            self.connections
+                .push(Connection::new(neuron.id, weight));
+        }
+    }
+
+    pub fn receive(&mut self, from_id: usize, signal: f32) { // revices a signal
+        self.voltage += signal;
+    }
+
+    pub fn should_fire(&self) -> bool {
+        self.voltage >= self.threshold
+    }
+    pub fn fire(&mut self) -> Option<&[Connection]> {
+        if self.voltage >= self.threshold {
+            self.voltage = self.resting_voltage;
+            Some(&self.connections)
+        } else {
+            None
+        }
     }
 }
 
@@ -92,7 +114,7 @@ impl Network {
         }
     }
 
-    pub fn get_or_create_neuron(
+    pub fn get_neuron( // get a neuron
         &mut self,
         id: usize,
         neuron_type: Type,
@@ -111,8 +133,23 @@ impl Network {
         &mut self.neurons[index]
     }
 
-    pub fn neuron_exists(&self, id: usize) -> bool {
+    pub fn neuron_exists(&self, id: usize) -> bool { // check if the neuron exists
         self.neurons.iter().any(|neuron| neuron.id == id)
     }
-}
 
+    // add a neuron to the network
+    pub fn add_neuron(&mut self, neuron: Neuron) {
+        if !self.neuron_exists(neuron.id) {
+            self.neurons.push(neuron);
+        }
+    }
+    // finds the neuron in the netowrk, usefull when the netork or brain needs to send a singal accros the netowrk
+    pub fn receive(&mut self, id: usize, from_id: usize, signal: f32) -> bool {
+        if let Some(neuron) = self.neurons.iter_mut().find(|neuron| neuron.id == id) {
+            neuron.receive(from_id, signal);
+            true
+        } else {
+            false
+        }
+    }
+}
