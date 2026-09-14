@@ -15,7 +15,7 @@ pub enum Signal {
     NumbersGuess(i32,f64),
 }
 
-pub fn electrical_signals(signal: Signal) {
+pub fn electrical_signals(signal: Signal) -> (u32, f64) {
     match signal {
         Signal::NumbersGuess(n,m) => numbers_guess(n,m),
     }
@@ -27,7 +27,7 @@ pub fn electrical_signals(signal: Signal) {
         its uses log 10 scale to squish the number between 0 to 1
         this function uses both techniques to infuse the signal in to the brain
 */
-pub fn numbers_guess(input: i32, total_electrodes: f64) {
+pub fn numbers_guess(input: i32, total_electrodes: f64) -> (u32, f64){
     // id the number is negative
     let is_negative = input < 0;
     let abs_input = input.unsigned_abs();
@@ -43,23 +43,14 @@ pub fn numbers_guess(input: i32, total_electrodes: f64) {
     let scale = (float_val.log10() / 9.0).clamp(0.0, 1.0);
 
     // normalized location 0.0 to 1.0
-    let normalized_location = scale;
+    let _normalized_location = scale;
 
     // physical electrode index
     let max_index = (total_electrodes - 1.0).max(0.0);
     let physical_location = (scale * max_index).round() as u32;
 
     // firing rate
-    let firing_rate_hz = 10.0 + (scale * 240.0);
+    let firing_rate = 10.0 + (scale * 240.0);
 
-    println!(
-        "input: {} (neg: {}) , digits: {} , normalized location: {:.4} , Physical Index: {}/{} , rate: {:.1}",
-        input,
-        is_negative,
-        digit_len,
-        normalized_location,
-        physical_location,
-        total_electrodes as u32,
-        firing_rate_hz
-    );
+    (physical_location, firing_rate)
 }

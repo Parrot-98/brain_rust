@@ -6,15 +6,7 @@ const A_PLUS: f32 = 0.1;
 const A_MINUS: f32 = 0.12;
 const WINDOW: f32 = 50.0;
 
-/// Spike-timing-dependent plasticity (STDP) for the synapse from `neuron_1` to
-/// `target_id`. Compares the pre-synaptic neuron's last spike time with the
-/// post-synaptic neuron's (`target_last_fired`):
-///   - post fires *after* pre (delta_t > 0)  -> potentiation: strengthen the synapse
-///   - post fires *before* pre (delta_t < 0) -> depression: weaken the synapse
-/// The effect shrinks exponentially as the gap grows and is ignored entirely
-/// outside WINDOW or when the spikes are simultaneous. The computed change is
-/// added to the connection's eligibility trace rather than the weight directly,
-/// so a later reward decides how much of it sticks. Returns true if a trace was updated.
+// STDP: strengthens or weakens the synapse's eligibility based on spike timing
 pub fn train(neuron_1: &mut Neuron, target_id: usize, target_last_fired: Option<f32>) -> bool {
     let (Some(t_pre), Some(t_post)) = (neuron_1.last_fired, target_last_fired) else {
         return false;

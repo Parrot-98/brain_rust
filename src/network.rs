@@ -30,7 +30,7 @@ impl PartialOrd for Event {
 }
 impl Ord for Event {
     fn cmp(&self, other: &Self) -> Ordering {
-        // reversed so the minimum time is popped first
+        // reversed so the earliest time pops first
         other
             .time
             .partial_cmp(&self.time)
@@ -47,7 +47,7 @@ pub struct Network {
 }
 
 impl Network {
-    /// Creates an empty network: no neurons, clock at zero, and an empty event queue.
+    // creates an empty network
     pub fn new() -> Self {
         Self {
             neurons: HashMap::new(),
@@ -57,28 +57,24 @@ impl Network {
         }
     }
 
-    /// Looks up a neuron by id, creating it with that id and type if it doesn't
-    /// exist yet, and returns a mutable reference to it.
+    // gets a neuron by id, creating it if it doesn't exist
     pub fn get_neuron(&mut self, id: usize, neuron_type: Type) -> &mut Neuron {
         self.neurons
             .entry(id)
             .or_insert_with(|| Neuron::new(id, neuron_type))
     }
 
-    /// True if a neuron with this id is in the network.
+    // true if a neuron with this id is in the network
     pub fn neuron_exists(&self, id: usize) -> bool {
         self.neurons.contains_key(&id)
     }
 
-    /// Inserts a neuron, keyed by its id. A no-op if that id is already taken.
+    // inserts a neuron by id, no-op if the id is taken
     pub fn add_neuron(&mut self, neuron: Neuron) {
         self.neurons.entry(neuron.id).or_insert(neuron);
     }
 
-    /// Fills the network with `total` neurons split roughly evenly into input,
-    /// hidden, and output groups (leftover neurons go to the earlier groups).
-    /// Ids continue past whatever ids already exist. Returns the id lists for the
-    /// three groups so the caller can wire the layers together.
+    // fills the network with total neurons split into input, hidden, and output groups
     pub fn populate(&mut self, total: usize) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
         let types = [Type::Input, Type::Hidden, Type::Output];
         let base = total / types.len();
@@ -110,9 +106,7 @@ impl Network {
         (input_ids, hidden_ids, output_ids)
     }
 
-    /// Adds a directed synapse from `from_id` to `to_id` with the given weight.
-    /// Returns false if either neuron is missing; otherwise delegates to the
-    /// source neuron, which computes the conduction delay from their positions.
+    // adds a directed synapse from from_id to to_id with the given weight
     pub fn connect(&mut self, from_id: usize, to_id: usize, weight: f32) -> bool {
         let Some(to_position) = self.neurons.get(&to_id).map(|neuron| neuron.position) else {
             return false;
@@ -126,10 +120,7 @@ impl Network {
         true
     }
 
-    /// Wires every neuron in `from_ids` toward every neuron in `to_ids`, but each
-    /// individual connection is made only with a probability that decays with the
-    /// distance between the two neurons (self-connections are skipped). Returns
-    /// how many connections were actually created.
+    // wires each neuron in from_ids to each in to_ids, with probability decaying by distance
     pub fn connect_layers(&mut self, from_ids: &[usize], to_ids: &[usize], weight: f32) -> usize {
         let mut rng = rand::rng();
         let mut connected = 0;
@@ -155,9 +146,7 @@ impl Network {
 
                 let distance = from_position.distance_to(&to_position);
 
-                // probability of connecting falls off with distance, scaled by the
-                // source neuron's effective_radius: distance == 0 -> probability 1.0,
-                // distance == radius -> probability 0.5, further away -> approaches 0
+                // probability falls off with distance relative to effective_radius
                 let probability = (from_radius / (from_radius + distance)).clamp(0.0, 1.0);
 
                 if rng.random::<f32>() < probability && self.connect(from_id, to_id, weight) {
@@ -169,11 +158,7 @@ impl Network {
         connected
     }
 
-    /// Broadcasts a reward (or punishment, if negative) to the whole network.
-    /// Every connection's eligibility trace is first decayed by how long it's been
-    /// since the last reward, then multiplied by `reward` and applied to the
-    /// weight. Traces are cleared afterward. This is the reward-modulated STDP
-    /// step: recent, well-timed synapses move in the rewarded direction.
+    // applies a reward to every connection's decayed eligibility trace, then clears the traces
     pub fn apply_reward(&mut self, reward: f32) {
         let elapsed = (self.time - self.last_reward_time).max(0.0);
         let decay = (-ELIGIBILITY_DECAY_RATE * elapsed).exp();
@@ -189,9 +174,7 @@ impl Network {
         self.last_reward_time = self.time;
     }
 
-    /// Injects an external signal into `start_id` at the current time and then
-    /// runs the event loop until nothing is left in flight. Returns whether any
-    /// neuron fired. Returns false immediately if the neuron doesn't exist.
+    // injects a signal into start_id and runs the event loop until it settles
     pub fn send_signal(&mut self, start_id: usize, signal: f32) -> bool {
         if !self.neuron_exists(start_id) {
             return false;
@@ -201,14 +184,13 @@ impl Network {
             time: self.time,
             target_id: start_id,
             influence: signal,
-            source_id: None, // externally injected, no neuron caused this
+            source_id: None, // no neuron caused this, it's an external signal
         });
 
         self.run_to_quiescence()
     }
 
-    /// Like `send_signal`, but only enqueues the signal (to arrive at the current
-    /// time) without running the simulation. The caller advances time with `step`.
+    // like send_signal but only enqueues, the caller advances time with step
     pub fn queue_signal(&mut self, start_id: usize, signal: f32) -> bool {
         if !self.neuron_exists(start_id) {
             return false;
@@ -218,25 +200,19 @@ impl Network {
             time: self.time,
             target_id: start_id,
             influence: signal,
-            source_id: None, // externally injected, no neuron caused this
+            source_id: None, // no neuron caused this, it's an external signal
         });
 
         true
     }
 
-    /// Advances the simulation clock by `dt` and delivers any events that have
-    /// now come due. Returns whether anything fired during this step.
+    // advances the clock by dt and delivers any events now due
     pub fn step(&mut self, dt: f32) -> bool {
         self.time += dt;
         self.deliver_due_events()
     }
 
-    /// Drains every event whose scheduled time is at or before the current clock.
-    /// For each: deliver the signal to the target neuron and check if it fires.
-    /// A firing neuron (a) schedules new events on all its outgoing connections
-    /// after their conduction delays, and (b) triggers STDP learning between the
-    /// firing neuron and both its upstream source and its downstream targets.
-    /// Returns whether any neuron fired.
+    // delivers every due event, firing neurons and triggering STDP learning
     fn deliver_due_events(&mut self) -> bool {
         let mut anything_fired = false;
 
@@ -246,7 +222,7 @@ impl Network {
             }
             let event = self.event_queue.pop().unwrap();
 
-            // O(1) direct lookup by id -- no scanning through every neuron
+            // direct lookup by id, no scanning through every neuron
             let Some(neuron) = self.neurons.get_mut(&event.target_id) else {
                 continue;
             };
@@ -262,8 +238,7 @@ impl Network {
                     self.event_queue.push(Event {
                         time: event.time + connection.delay,
                         target_id: connection.target_id,
-                        // a fixed spike amplitude scaled by connection weight is what
-                        // actually lets a spike cascade to downstream neurons
+                        // spike amplitude scaled by connection weight
                         influence: SPIKE_AMPLITUDE * connection.weight,
                         source_id: Some(firing_id),
                     });
@@ -291,10 +266,7 @@ impl Network {
         anything_fired
     }
 
-    /// Repeatedly jumps the clock straight to the next queued event and processes
-    /// it, until the queue is empty (the network has "gone quiet"). A safety cap
-    /// of MAX_EVENTS stops runaway self-sustaining activity. Returns whether
-    /// anything fired along the way.
+    // jumps to each queued event until the queue is empty, capped by MAX_EVENTS
     fn run_to_quiescence(&mut self) -> bool {
         let mut anything_fired = false;
         let mut safety = 0;

@@ -13,8 +13,7 @@ pub struct Connection {
 }
 
 impl Connection {
-    /// Creates a connection to `target_id`, clamping the starting weight into the
-    /// allowed range and starting with zero eligibility (no pending learning).
+    // creates a connection with weight clamped to the allowed range and zero eligibility
     pub fn new(target_id: usize, weight: f32, delay: f32) -> Self {
         Self {
             target_id,
@@ -24,15 +23,12 @@ impl Connection {
         }
     }
 
-    /// Nudges the synaptic weight by `delta`, keeping it within [MIN_WEIGHT, MAX_WEIGHT].
-    /// Called when a reward is applied to turn pending eligibility into a real weight change.
+    // nudges the weight by delta, clamped to the allowed range
     pub fn adjust_weight(&mut self, delta: f32) {
         self.weight = (self.weight + delta).clamp(MIN_WEIGHT, MAX_WEIGHT);
     }
 
-    /// Adds to the eligibility trace (the "this synapse recently did something
-    /// learnable" marker left by STDP), clamped so it can't grow without bound.
-    /// The trace is later multiplied by a reward to decide the actual weight change.
+    // adds to the eligibility trace left by STDP, clamped to the allowed range
     pub fn accumulate_eligibility(&mut self, delta: f32) {
         self.eligibility = (self.eligibility + delta).clamp(MIN_ELIGIBILITY, MAX_ELIGIBILITY);
     }

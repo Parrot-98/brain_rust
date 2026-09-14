@@ -20,8 +20,7 @@ pub struct Position {
 }
 
 impl Position {
-    /// Straight-line (Euclidean) distance between two points in 3D space.
-    /// Used to decide connection probability and signal conduction delay.
+    // straight-line distance between two points in 3D space
     pub fn distance_to(&self, other: &Position) -> f32 {
         ((self.x - other.x).powi(2)
             + (self.y - other.y).powi(2)
@@ -39,8 +38,8 @@ pub struct Neuron {
     // electrical
     pub voltage: f32,
     pub resting_voltage: f32,
-    pub threshold: f32, // how mach the neuron can be stimulated before it fires
-    pub leak_rate: f32, // how fast the voltage drops back to resting_voltage
+    pub threshold: f32, // voltage needed to fire
+    pub leak_rate: f32, // how fast voltage drops back to resting_voltage
 
     // timing
     pub last_update: f32, // the last time the voltage was brought up to date
@@ -61,7 +60,7 @@ impl Neuron {
     pub fn new(id: usize, neuron_type: Type) -> Self {
         let mut rng = rand::rng();
 
-        let resting_voltage = rng.random_range(-75.0..=-65.0); // each neuaon in an acually brain runs on -70 millivolts 
+        let resting_voltage = rng.random_range(-75.0..=-65.0); // real neurons rest around -70 millivolts
         let threshold = rng.random_range(-58.0..=-50.0);
 
         Self {
@@ -89,9 +88,7 @@ impl Neuron {
         }
     }
 
-    /// Adds an outgoing synapse from this neuron to `target_id`. Skips it if one
-    /// already exists (no duplicates). The conduction delay is derived from the
-    /// physical distance between the two neurons, floored at MIN_DELAY.
+    // adds an outgoing synapse to target_id, skipping duplicates, delay from distance
     pub fn connect_to(&mut self, target_id: usize, target_position: Position, weight: f32) {
         if !self
             .connections
@@ -106,9 +103,7 @@ impl Neuron {
         }
     }
 
-    /// Lazily advances the neuron's state to `time`: since the last update the
-    /// membrane voltage has been leaking exponentially back toward resting_voltage,
-    /// so this applies that decay in one step instead of simulating every instant.
+    // advances voltage to time, applying the exponential leak toward resting_voltage
     fn catch_up(&mut self, time: f32) {
         let elapsed = (time - self.last_update).max(0.0);
 
@@ -120,17 +115,13 @@ impl Neuron {
         self.last_update = time;
     }
 
-    /// Delivers an incoming signal: first decays the voltage up to `time`, then
-    /// adds `influence` (positive = excitatory, negative = inhibitory) to it.
+    // delivers an incoming signal, decaying voltage up to time then adding influence
     pub fn receive(&mut self, influence: f32, time: f32) {
         self.catch_up(time);
         self.voltage += influence;
     }
 
-    /// Checks whether the neuron spikes at `time`. Returns false if still in its
-    /// refractory (recovery) window. Otherwise, if the voltage has reached the
-    /// threshold it fires: resets to resting voltage, records the fire time, and
-    /// starts a new refractory period. Returns whether it fired.
+    // fires if voltage reached threshold and not in refractory period
     pub fn fire(&mut self, time: f32) -> bool {
         self.catch_up(time);
 
